@@ -231,12 +231,4 @@ cd pposong-backend
 
 실행 전 데이터베이스 연결 정보, JWT Secret, AWS 인증 정보를 환경변수와 설정 파일에 등록해야 합니다.
 
-### 3. 프로젝트 실행
-
-Windows:
-
-```bash
-gradlew.bat bootRun
-```
-
 개인 개발 및 포트폴리오 목적으로 제작한 프로젝트입니다.
