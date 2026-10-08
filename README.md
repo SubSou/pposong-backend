@@ -12,7 +12,6 @@ Spring Boot와 MySQL을 기반으로 REST API를 구현했으며, JWT 인증과 
 
 - **서비스:** https://pposong-frontend.vercel.app/
 - **Frontend:** https://github.com/SubSou/pposong-frontend
-- **Backend:** https://github.com/SubSou/pposong-backend
 
 ## 기술 스택
 
