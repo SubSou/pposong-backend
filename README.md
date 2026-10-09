@@ -214,20 +214,3 @@ Nginx의 업로드 요청 크기 제한을 확인하고 `client_max_body_size` �
 로컬에서는 정상적으로 연결되던 WebSocket이 배포 환경에서 연결되지 않는 문제가 있었습니다.
 
 HTTPS 환경에 맞게 WSS를 적용하고, Nginx의 WebSocket 관련 헤더와 서버의 허용 Origin 설정을 수정했습니다.
-
-## 로컬 실행 방법
-
-### 1. 프로젝트 복제
-
-```bash
-git clone https://github.com/SubSou/pposong-backend.git
-cd pposong-backend
-```
-
-### 2. 환경 설정
-
-`application.properties`는 보안상 GitHub에 포함하지 않았습니다.
-
-실행 전 데이터베이스 연결 정보, JWT Secret, AWS 인증 정보를 환경변수와 설정 파일에 등록해야 합니다.
-
-개인 개발 및 포트폴리오 목적으로 제작한 프로젝트입니다.
