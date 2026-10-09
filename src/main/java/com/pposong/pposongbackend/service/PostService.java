@@ -1,3 +1,4 @@
+
 package com.pposong.pposongbackend.service;
 
 import com.pposong.pposongbackend.dto.post.CreatePostRequest;
@@ -6,6 +7,8 @@ import com.pposong.pposongbackend.dto.post.UpdatePostRequest;
 
 import com.pposong.pposongbackend.entity.Post;
 import com.pposong.pposongbackend.entity.User;
+import com.pposong.pposongbackend.entity.PostImage;
+import com.pposong.pposongbackend.entity.Comment;
 
 import com.pposong.pposongbackend.repository.CommentRepository;
 import com.pposong.pposongbackend.repository.LikeRepository;
@@ -13,14 +16,13 @@ import com.pposong.pposongbackend.repository.PostImageRepository;
 import com.pposong.pposongbackend.repository.PostRepository;
 import com.pposong.pposongbackend.repository.UserRepository;
 
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.util.List;
-
-import com.pposong.pposongbackend.entity.PostImage;
-
-import com.pposong.pposongbackend.entity.Comment;
 
 @Service
 public class PostService {
@@ -31,6 +33,7 @@ public class PostService {
     private final CommentRepository commentRepository;
     private final PostImageRepository postImageRepository;
     private final S3Service s3Service;
+    private final JdbcTemplate jdbcTemplate;
 
     public PostService(
             PostRepository postRepository,
@@ -38,7 +41,8 @@ public class PostService {
             LikeRepository likeRepository,
             CommentRepository commentRepository,
             PostImageRepository postImageRepository,
-            S3Service s3Service
+            S3Service s3Service,
+            JdbcTemplate jdbcTemplate
     ) {
         this.postRepository = postRepository;
         this.userRepository = userRepository;
@@ -46,6 +50,42 @@ public class PostService {
         this.commentRepository = commentRepository;
         this.postImageRepository = postImageRepository;
         this.s3Service = s3Service;
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    /*
+     * JDBC 시간 확인 (임시 테스트)
+     */
+    private void checkCreatedAt() {
+
+        Long postId = 3L;
+
+        LocalDateTime jdbcTime = jdbcTemplate.queryForObject(
+                "SELECT created_at FROM posts WHERE id = ?",
+                (rs, rowNum) ->
+                        rs.getObject("created_at", LocalDateTime.class),
+                postId
+        );
+
+        Timestamp timestamp = jdbcTemplate.queryForObject(
+                "SELECT created_at FROM posts WHERE id = ?",
+                (rs, rowNum) ->
+                        rs.getTimestamp("created_at"),
+                postId
+        );
+
+        String rawTime = jdbcTemplate.queryForObject(
+                "SELECT CAST(created_at AS CHAR) FROM posts WHERE id = ?",
+                String.class,
+                postId
+        );
+
+        System.out.println("===== JDBC 시간 확인 =====");
+        System.out.println("게시글 ID: " + postId);
+        System.out.println("MySQL 문자열: " + rawTime);
+        System.out.println("JDBC LocalDateTime: " + jdbcTime);
+        System.out.println("JDBC Timestamp: " + timestamp);
+        System.out.println("JVM 시간대: " + java.time.ZoneId.systemDefault());
     }
 
     /*
@@ -68,13 +108,11 @@ public class PostService {
                 user
         );
 
-        Post savedPost =
-                postRepository.save(post);
+        Post savedPost = postRepository.save(post);
 
         if (request.getImageUrls() != null) {
 
-            List<String> imageUrls =
-                    request.getImageUrls();
+            List<String> imageUrls = request.getImageUrls();
 
             if (imageUrls.size() > 10) {
                 throw new IllegalArgumentException(
@@ -84,12 +122,11 @@ public class PostService {
 
             for (int i = 0; i < imageUrls.size(); i++) {
 
-                PostImage postImage =
-                        new PostImage(
-                                savedPost,
-                                imageUrls.get(i),
-                                i
-                        );
+                PostImage postImage = new PostImage(
+                        savedPost,
+                        imageUrls.get(i),
+                        i
+                );
 
                 postImageRepository.save(postImage);
             }
@@ -102,20 +139,22 @@ public class PostService {
     @Transactional(readOnly = true)
     public List<PostResponse> getPosts(Long userId) {
 
-        List<Post> posts =
-                postRepository
-                        .findAllByActiveOrderByCreatedAtDesc("Y");
+        System.out.println("===== getPosts 실행 확인 =====");
+
+        // JDBC 시간 확인
+        checkCreatedAt();
+
+        List<Post> posts = postRepository
+                .findAllByActiveOrderByCreatedAtDesc("Y");
 
         return posts.stream()
                 .map(post -> {
 
-                    // 좋아요 개수
                     long likeCount =
                             likeRepository.countByPostId(
                                     post.getId()
                             );
 
-                    // 내가 좋아요를 눌렀는지
                     boolean liked =
                             likeRepository
                                     .findByPostIdAndUserId(
@@ -124,7 +163,6 @@ public class PostService {
                                     )
                                     .isPresent();
 
-                    // 댓글 개수
                     long commentCount =
                             commentRepository
                                     .countByPostIdAndActive(
@@ -132,17 +170,21 @@ public class PostService {
                                             "Y"
                                     );
 
-                    // 게시글 이미지 URL 목록
                     List<String> imageUrls =
                             postImageRepository
                                     .findAllByPostIdOrderByImageOrderAsc(
                                             post.getId()
                                     )
                                     .stream()
-                                    .map(postImage ->
-                                            postImage.getImageUrl()
-                                    )
+                                    .map(PostImage::getImageUrl)
                                     .toList();
+
+                    if (post.getId().equals(3L)) {
+                        System.out.println(
+                                "Hibernate createdAt: "
+                                        + post.getCreatedAt()
+                        );
+                    }
 
                     return new PostResponse(
                             post,
@@ -170,43 +212,34 @@ public class PostService {
                         )
                 );
 
-        // 이미 삭제된 게시글인지 확인
         if ("N".equals(post.getActive())) {
             throw new IllegalStateException(
                     "이미 삭제된 게시글입니다."
             );
         }
 
-        // 작성자 확인
-        if (!post.getUser()
-                .getId()
-                .equals(userId)) {
-
+        if (!post.getUser().getId().equals(userId)) {
             throw new IllegalStateException(
                     "게시글을 삭제할 권한이 없습니다."
             );
         }
 
-        // 게시글에 등록된 이미지 조회
         List<PostImage> postImages =
                 postImageRepository
                         .findAllByPostIdOrderByImageOrderAsc(
                                 postId
                         );
 
-        // S3 이미지 삭제
         for (PostImage postImage : postImages) {
             s3Service.deleteImage(
                     postImage.getImageUrl()
             );
         }
 
-        // post_images DB 데이터 삭제
         postImageRepository.deleteAllByPostId(
                 postId
         );
 
-        // 게시글에 달린 댓글 조회
         List<Comment> comments =
                 commentRepository
                         .findAllByPostIdAndActiveOrderByCreatedAtAsc(
@@ -214,17 +247,14 @@ public class PostService {
                                 "Y"
                         );
 
-        // 댓글 소프트 삭제
         for (Comment comment : comments) {
             comment.delete();
         }
 
-        // 좋아요 데이터 삭제
         likeRepository.deleteAllByPostId(
                 postId
         );
 
-        // 게시글 소프트 삭제
         post.delete();
     }
 
@@ -237,36 +267,29 @@ public class PostService {
             Long postId,
             UpdatePostRequest request
     ) {
-        Post post = postRepository
-                .findById(postId)
+        Post post = postRepository.findById(postId)
                 .orElseThrow(() ->
                         new IllegalArgumentException(
                                 "게시글을 찾을 수 없습니다."
                         )
                 );
 
-        // 삭제된 게시글인지 확인
         if ("N".equals(post.getActive())) {
             throw new IllegalStateException(
                     "삭제된 게시글은 수정할 수 없습니다."
             );
         }
 
-        // 본인이 작성한 게시글인지 확인
-        if (!post.getUser()
-                .getId()
-                .equals(userId)) {
+        if (!post.getUser().getId().equals(userId)) {
             throw new IllegalStateException(
                     "게시글을 수정할 권한이 없습니다."
             );
         }
 
-        // 게시글 내용 수정
         post.updateContent(
                 request.getContent()
         );
 
-// 수정 전 기존 이미지 URL 가져오기
         List<String> oldImageUrls =
                 postImageRepository
                         .findAllByPostIdOrderByImageOrderAsc(
@@ -276,7 +299,6 @@ public class PostService {
                         .map(PostImage::getImageUrl)
                         .toList();
 
-// 수정 후 이미지 목록
         List<String> imageUrls =
                 request.getImageUrls();
 
@@ -288,7 +310,6 @@ public class PostService {
                 );
             }
 
-            // 기존 이미지 중 사용자가 삭제한 이미지 찾기
             List<String> removedImageUrls =
                     oldImageUrls.stream()
                             .filter(oldUrl ->
@@ -296,37 +317,29 @@ public class PostService {
                             )
                             .toList();
 
-            // DB의 기존 이미지 정보 삭제
             postImageRepository.deleteAllByPostId(
                     postId
             );
 
-            // 수정 후 이미지 목록 다시 저장
             for (int i = 0; i < imageUrls.size(); i++) {
 
-                PostImage postImage =
-                        new PostImage(
-                                post,
-                                imageUrls.get(i),
-                                i
-                        );
+                PostImage postImage = new PostImage(
+                        post,
+                        imageUrls.get(i),
+                        i
+                );
 
                 postImageRepository.save(
                         postImage
                 );
             }
 
-            // 사용자가 제거한 이미지를 S3에서도 삭제
             for (String removedImageUrl : removedImageUrls) {
                 s3Service.deleteImage(
                         removedImageUrl
                 );
             }
         }
-
-        /*
-         * 수정된 게시글 Response
-         */
 
         long likeCount =
                 likeRepository.countByPostId(
@@ -381,20 +394,17 @@ public class PostService {
                         )
                 );
 
-        // 삭제된 게시글인지 확인
         if ("N".equals(post.getActive())) {
             throw new IllegalStateException(
                     "삭제된 게시글입니다."
             );
         }
 
-        // 좋아요 개수
         long likeCount =
                 likeRepository.countByPostId(
                         postId
                 );
 
-        // 현재 사용자가 좋아요를 눌렀는지
         boolean liked =
                 likeRepository
                         .findByPostIdAndUserId(
@@ -403,7 +413,6 @@ public class PostService {
                         )
                         .isPresent();
 
-        // 댓글 개수
         long commentCount =
                 commentRepository
                         .countByPostIdAndActive(
@@ -411,16 +420,13 @@ public class PostService {
                                 "Y"
                         );
 
-        // 게시글 이미지 URL 목록
         List<String> imageUrls =
                 postImageRepository
                         .findAllByPostIdOrderByImageOrderAsc(
                                 postId
                         )
                         .stream()
-                        .map(postImage ->
-                                postImage.getImageUrl()
-                        )
+                        .map(PostImage::getImageUrl)
                         .toList();
 
         return new PostResponse(
@@ -432,11 +438,13 @@ public class PostService {
         );
     }
 
+    /*
+     * 내가 작성한 게시글 조회
+     */
     @Transactional(readOnly = true)
     public List<PostResponse> getMyPosts(
             Long userId
     ) {
-
         List<Post> posts =
                 postRepository
                         .findAllByUserIdAndActiveOrderByCreatedAtDesc(
@@ -487,6 +495,9 @@ public class PostService {
                 .toList();
     }
 
+    /*
+     * 좋아요한 게시글 조회
+     */
     @Transactional(readOnly = true)
     public List<PostResponse> getLikedPosts(
             Long userId

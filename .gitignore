@@ -49,3 +49,5 @@ application-prod.properties
 # Secret files
 *.pem
 *.key
+
+.env.docker

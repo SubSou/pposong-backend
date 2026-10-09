@@ -4,6 +4,12 @@ import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 @Entity
 @Table(name = "posts")
 public class Post {
@@ -22,6 +28,7 @@ public class Post {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @JdbcTypeCode(SqlTypes.LOCAL_DATE_TIME)
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

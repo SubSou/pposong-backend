@@ -1,0 +1,37 @@
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: pposong-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: pposong
+      MYSQL_USER: pposong
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: .
+    image: pposong-backend
+    container_name: pposong-backend
+    ports:
+      - "8081:8080"
+    env_file:
+      - .env.docker
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/pposong
+      DB_USERNAME: pposong
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  mysql-data:

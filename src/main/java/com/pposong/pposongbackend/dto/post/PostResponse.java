@@ -36,6 +36,13 @@ public class PostResponse {
         this.content = post.getContent();
         this.userId = post.getUser().getId();
         this.username = post.getUser().getUsername();
+
+        System.out.println("===== 게시글 시간 확인 =====");
+        System.out.println("게시글 ID: " + post.getId());
+        System.out.println("Java createdAt: " + post.getCreatedAt());
+        System.out.println("JVM 시간대: " + java.time.ZoneId.systemDefault());
+
+        this.createdAt = post.getCreatedAt();
         this.createdAt = post.getCreatedAt();
 
         this.likeCount = likeCount;
