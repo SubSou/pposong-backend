@@ -73,50 +73,67 @@ MySQL과 JPA를 사용해 사용자, 게시글, 댓글, 좋아요 등의 데이�
 erDiagram
     USERS ||--o{ POSTS : writes
     USERS ||--o{ COMMENTS : writes
-    USERS ||--o{ LIKES : creates
-    USERS ||--o{ REPORTS : creates
+    USERS ||--o{ POST_LIKES : likes
+    USERS ||--o{ REPORTS : reports
 
     POSTS ||--o{ POST_IMAGES : contains
     POSTS ||--o{ COMMENTS : has
-    POSTS ||--o{ LIKES : receives
+    POSTS ||--o{ POST_LIKES : receives
     POSTS ||--o{ REPORTS : receives
+
+    COMMENTS o|--o{ COMMENTS : replies_to
 
     USERS {
         bigint id PK
         varchar username
-        varchar email
+        varchar email UK
         varchar password
-        varchar role
-        varchar status
+        varchar bio
+        varchar profile_image_url
+        enum role
+        enum status
         datetime created_at
     }
 
     POSTS {
         bigint id PK
         bigint user_id FK
+        text content
+        varchar active
+        datetime created_at
     }
 
     POST_IMAGES {
         bigint id PK
         bigint post_id FK
+        varchar image_url
+        int image_order
     }
 
     COMMENTS {
         bigint id PK
         bigint user_id FK
         bigint post_id FK
+        bigint parent_id FK
+        varchar content
+        varchar mention_username
+        varchar active
+        datetime created_at
     }
 
-    LIKES {
+    POST_LIKES {
         bigint id PK
         bigint user_id FK
         bigint post_id FK
+        datetime created_at
     }
 
     REPORTS {
         bigint id PK
-        bigint user_id FK
+        bigint reporter_id FK
         bigint post_id FK
+        enum reason
+        datetime created_at
     }
 ```
 
